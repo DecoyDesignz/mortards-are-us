@@ -102,6 +102,8 @@ export default function App() {
   const [mortarNorthing, setMortarNorthing] = useState('');
   const [targetEasting, setTargetEasting] = useState('');
   const [targetNorthing, setTargetNorthing] = useState('');
+  const [originalTargetEasting, setOriginalTargetEasting] = useState(null); // Store original coordinates
+  const [originalTargetNorthing, setOriginalTargetNorthing] = useState(null);
   const [adjustBearing, setAdjustBearing] = useState(''); // Optional bearing for adjustments
   const [bearingUnit, setBearingUnit] = useState('degrees'); // 'degrees' or 'mils'
 
@@ -161,6 +163,37 @@ export default function App() {
   // Check if coordinates are valid
   const mortarValid = mortarEastingParsed !== null && mortarNorthingParsed !== null;
   const targetValid = targetEastingParsed !== null && targetNorthingParsed !== null;
+
+  // Store original target coordinates when they first become valid
+  useEffect(() => {
+    if (targetValid && (originalTargetEasting === null || originalTargetNorthing === null)) {
+      setOriginalTargetEasting(targetEastingParsed);
+      setOriginalTargetNorthing(targetNorthingParsed);
+    }
+  }, [targetValid, targetEastingParsed, targetNorthingParsed, originalTargetEasting, originalTargetNorthing]);
+
+  // Reset original coordinates when target coordinates are manually changed
+  useEffect(() => {
+    if (targetValid) {
+      // Check if the current coordinates are significantly different from what would result from adjustments
+      if (originalTargetEasting !== null && originalTargetNorthing !== null) {
+        const expectedEasting = originalTargetEasting;
+        const expectedNorthing = originalTargetNorthing;
+        const tolerance = 10; // 10 meter tolerance for coordinate parsing differences
+        
+        if (Math.abs(targetEastingParsed - expectedEasting) > tolerance || 
+            Math.abs(targetNorthingParsed - expectedNorthing) > tolerance) {
+          // Coordinates were manually changed, update the original
+          setOriginalTargetEasting(targetEastingParsed);
+          setOriginalTargetNorthing(targetNorthingParsed);
+        }
+      }
+    } else {
+      // Target coordinates cleared, reset original
+      setOriginalTargetEasting(null);
+      setOriginalTargetNorthing(null);
+    }
+  }, [targetEasting, targetNorthing]);
 
   // Run solution search whenever inputs change
   useEffect(() => {
@@ -242,20 +275,22 @@ export default function App() {
     setSolutions(found);
     setChosenIndex(0);
     
-    // Set best solution for display - MODIFIED TO PREFER INDIRECT FIRE
+    // Set best solution for display - MODIFIED TO PREFER INDIRECT FIRE AND ENFORCE 800 MIL MINIMUM LIMIT
     if (found.length > 0) {
       const best = found[0];
       
-      // For mortars, prefer indirect fire if available and reasonable
-      // Only use direct if indirect is not available or has very poor accuracy
-      const indirectAvailable = best.indirect !== null;
-      const directAvailable = best.direct !== null;
+      // M252 has 800 mil minimum elevation limit
+      const MIN_ELEVATION_MILS = 800;
       
-      let useIndirect = false;
+      // Check if solutions meet minimum elevation requirements
+      const directValid = best.direct && best.direct.angleMils >= MIN_ELEVATION_MILS;
+      const indirectValid = best.indirect && best.indirect.angleMils >= MIN_ELEVATION_MILS;
+      
+      let useIndirect = true;
       let reason = '';
       
-      if (indirectAvailable && directAvailable) {
-        // If both available, prefer indirect unless it's significantly worse (>50% more error)
+      if (indirectValid && directValid) {
+        // Both are valid, prefer indirect with tolerance check
         const indirectObj = best.indirect.obj;
         const directObj = best.direct.obj;
         
@@ -276,21 +311,35 @@ export default function App() {
         } else {
           reason = 'Direct fire chosen - indirect fire accuracy too poor';
         }
-      } else if (indirectAvailable) {
-        // If only indirect available, use it
+      } else if (indirectValid && !directValid) {
+        // Only indirect is valid (direct below elevation limit)
+        useIndirect = true;
+        reason = `Indirect fire chosen - direct fire below 800 mil minimum (${best.direct ? best.direct.angleMils : 'N/A'} mils)`;
+      } else if (!indirectValid && directValid) {
+        // Only direct is valid (indirect below elevation limit)
+        useIndirect = false;
+        reason = `Direct fire chosen - indirect fire below 800 mil minimum (${best.indirect ? best.indirect.angleMils : 'N/A'} mils)`;
+      } else if (indirectValid) {
+        // Default to indirect if available
         useIndirect = true;
         reason = 'Indirect fire chosen - only viable solution';
-      } else if (directAvailable) {
+      } else if (directValid) {
+        // Fallback to direct if it's the only option
+        useIndirect = false;
         reason = 'Direct fire chosen - only viable solution';
+      } else {
+        // Neither solution is valid - this shouldn't happen but handle gracefully
+        useIndirect = best.indirect !== null;
+        reason = 'Warning: Selected solution below 800 mil minimum elevation';
       }
-      // If only direct available, useIndirect remains false
       
       setBestSolution({
         ring: best.label,
         type: useIndirect ? 'Indirect' : 'Direct',
         solution: useIndirect ? best.indirect : best.direct,
         bearingMils: Math.round(best.bearingDeg * 17.7778),
-        range: best.horizontalDistance
+        range: best.horizontalDistance,
+        elevationExceeded: (useIndirect ? best.indirect?.angleMils : best.direct?.angleMils) < MIN_ELEVATION_MILS
       });
       
       setSolutionReason(reason);
@@ -401,48 +450,74 @@ export default function App() {
   const adjustFire = (type, amount) => {
     setFireAdjustments(prev => ({
       ...prev,
-      [type]: Math.max(0, Math.min(100, prev[type] + amount))
+      [type]: Math.max(0, prev[type] + amount)
     }));
   };
-  function applyAdjustmentsAndRecalc() {
-    if (!mortarValid || !targetValid) return;
-    
-    // Get the base bearing from mortar to target, or use custom bearing if provided
-    let adjustmentBearing;
-    if (adjustBearing && !isNaN(Number(adjustBearing))) {
-      // Use custom bearing
-      let bearingValue = Number(adjustBearing);
-      if (bearingUnit === 'mils') {
-        bearingValue = bearingValue / 17.7778; // Convert mils to degrees
-      }
-      adjustmentBearing = bearingValue;
-    } else {
-      // Use mortar-to-target bearing as default
-      const { bearingDeg } = rangeCalculation(
-        mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-        targetEastingParsed, targetNorthingParsed, targetElev || 0
-      );
-      adjustmentBearing = bearingDeg;
-    }
 
-    // Calculate range adjustment (Add = farther, Drop = closer)
+  function applyAdjustmentsAndRecalc() {
+    if (!mortarValid || !targetValid || originalTargetEasting === null || originalTargetNorthing === null) return;
+    
+    // Calculate range adjustment (Add = farther from mortar, Drop = closer to mortar)
     const rangeAdjustment = (fireAdjustments.add || 0) - (fireAdjustments.drop || 0);
     
     // Calculate deflection adjustment (Left = negative, Right = positive)
     const deflectionAdjustment = (fireAdjustments.right || 0) - (fireAdjustments.left || 0);
     
-    // Convert bearing to radians for calculations
-    const bearingRad = adjustmentBearing * Math.PI / 180;
+    let newEasting, newNorthing;
+    let adjustmentBearing;
     
-    // Apply range adjustment along the bearing line
-    let newEasting = targetEastingParsed + rangeAdjustment * Math.sin(bearingRad);
-    let newNorthing = targetNorthingParsed + rangeAdjustment * Math.cos(bearingRad);
-    
-    // Apply deflection adjustment perpendicular to bearing line
-    const perpBearingRad = bearingRad + Math.PI / 2; // 90 degrees to the bearing
-    newEasting += deflectionAdjustment * Math.sin(perpBearingRad);
-    newNorthing += deflectionAdjustment * Math.cos(perpBearingRad);
+    if (adjustBearing && !isNaN(Number(adjustBearing))) {
+      // Custom bearing provided - use it for adjustments
+      let bearingValue = Number(adjustBearing);
+      if (bearingUnit === 'mils') {
+        bearingValue = bearingValue / 17.7778; // Convert mils to degrees
+      }
+      adjustmentBearing = bearingValue;
+      
+      const bearingRad = adjustmentBearing * Math.PI / 180;
+      
+      // Apply adjustments using custom bearing FROM ORIGINAL COORDINATES
+      newEasting = originalTargetEasting + rangeAdjustment * Math.sin(bearingRad);
+      newNorthing = originalTargetNorthing + rangeAdjustment * Math.cos(bearingRad);
+      
+      // Apply deflection adjustment perpendicular to custom bearing
+      const perpBearingRad = bearingRad + Math.PI / 2;
+      newEasting += deflectionAdjustment * Math.sin(perpBearingRad);
+      newNorthing += deflectionAdjustment * Math.cos(perpBearingRad);
+      
+    } else {
+      // No custom bearing - maintain mortar-to-target bearing, only adjust range
+      const { horizontalDistance, bearingDeg } = rangeCalculation(
+        mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+        originalTargetEasting, originalTargetNorthing, targetElev || 0
+      );
+      adjustmentBearing = bearingDeg;
+      
+      // Calculate new range (original + adjustment)
+      const newRange = horizontalDistance + rangeAdjustment;
+      
+      // Keep the same bearing, just change the range FROM MORTAR POSITION
+      const bearingRad = bearingDeg * Math.PI / 180;
+      newEasting = mortarEastingParsed + newRange * Math.sin(bearingRad);
+      newNorthing = mortarNorthingParsed + newRange * Math.cos(bearingRad);
+      
+      // Apply deflection adjustment perpendicular to original bearing
+      const perpBearingRad = bearingRad + Math.PI / 2;
+      newEasting += deflectionAdjustment * Math.sin(perpBearingRad);
+      newNorthing += deflectionAdjustment * Math.cos(perpBearingRad);
+    }
 
+    // Calculate original and new ranges for comparison
+    const originalRange = rangeCalculation(
+      mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+      originalTargetEasting, originalTargetNorthing, targetElev || 0
+    ).horizontalDistance;
+    
+    const newRange = rangeCalculation(
+      mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+      newEasting, newNorthing, targetElev || 0
+    ).horizontalDistance;
+    
     // Convert back to input format
     const formatCoordinate = (coord) => {
       // Try to maintain the original input format
@@ -585,117 +660,6 @@ export default function App() {
                 <small>💡 {solutionReason}</small>
               </div>
             )}
-
-        {tab === 'sheaf' && (
-          <div className="tab-content">
-            <div className="input-section">
-              <h4>Sheaf Configuration</h4>
-              <div className="sheaf-controls">
-                <div className="sheaf-type-selector">
-                  <label>Distribution Type</label>
-                  <select value={sheafType} onChange={e => setSheafType(e.target.value)}>
-                    <option value="open">Open</option>
-                    <option value="closed">Closed</option>
-                    <option value="linear">Linear</option>
-                    <option value="rectangular">Rectangular</option>
-                  </select>
-                </div>
-                <div className="sheaf-spread">
-                  <label>Spread (meters)</label>
-                  <input 
-                    type="number" 
-                    value={sheafSpread} 
-                    onChange={e => setSheafSpread(Number(e.target.value))} 
-                    min="10" 
-                    max="200"
-                  />
-                </div>
-              </div>
-              <div className="sheaf-description">
-                <small>
-                  {sheafType === 'open' && 'Open: Mortars spread perpendicular to target bearing, alternating sides'}
-                  {sheafType === 'closed' && 'Closed: Tight spacing perpendicular to target bearing'}
-                  {sheafType === 'linear' && 'Linear: Mortars spread along the target bearing line'}
-                  {sheafType === 'rectangular' && 'Rectangular: 2D grid pattern around target'}
-                </small>
-              </div>
-            </div>
-
-            <div className="input-section">
-              <h4>Mortar Positions</h4>
-              <div className="mortars-list">
-                {mortars.map((mortar) => (
-                  <div key={mortar.id} className="mortar-item">
-                    <div className="mortar-header">
-                      <input 
-                        value={mortar.label} 
-                        onChange={e => updateMortar(mortar.id, 'label', e.target.value)}
-                        className="mortar-label"
-                      />
-                      {mortars.length > 1 && (
-                        <button 
-                          onClick={() => deleteMortar(mortar.id)}
-                          className="delete-mortar"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                    <div className="mortar-coordinates">
-                      <div className="coordinate-input">
-                        <label>Easting</label>
-                        <input 
-                          value={mortar.easting} 
-                          onChange={e => updateMortar(mortar.id, 'easting', e.target.value)} 
-                          placeholder="048"
-                        />
-                      </div>
-                      <div className="coordinate-input">
-                        <label>Northing</label>
-                        <input 
-                          value={mortar.northing} 
-                          onChange={e => updateMortar(mortar.id, 'northing', e.target.value)} 
-                          placeholder="120"
-                        />
-                      </div>
-                      <div className="elevation-input">
-                        <label>Elevation (m)</label>
-                        <input 
-                          type="number" 
-                          value={mortar.elevation} 
-                          onChange={e => updateMortar(mortar.id, 'elevation', Number(e.target.value))} 
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={addMortar} className="add-mortar-btn">
-                + Add Mortar
-              </button>
-            </div>
-
-            {targetValid && (
-              <div className="input-section">
-                <h4>Sheaf Distribution Results</h4>
-                <div className="sheaf-results">
-                  {calculateSheafDistribution().map((result, index) => (
-                    <div key={result.mortar.id} className="sheaf-result-item">
-                      <div className="result-header">
-                        <strong>{result.mortar.label}</strong>
-                      </div>
-                      <div className="result-data">
-                        <div>Target: {Math.round(result.targetE)}, {Math.round(result.targetN)}</div>
-                        <div>Range: {result.range.toFixed(1)}m</div>
-                        <div>Bearing: {result.bearing.toFixed(1)}° / {result.bearingMils} mils</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
             <div className="solution-grid">
               <div className="solution-item">
                 <span className="label">RING:</span>
@@ -835,13 +799,15 @@ export default function App() {
                       </div>
                       <div className="solution-details">
                         {s.direct && (
-                          <div className="direct-fire">
+                          <div className={`direct-fire ${s.direct.angleMils < 800 ? 'elevation-exceeded' : ''}`}>
                             Direct: {s.direct.angleDeg.toFixed(2)}° / {s.direct.angleMils} mils — tof {s.direct.tof ? s.direct.tof.toFixed(2) + 's' : 'n/a'}
+                            {s.direct.angleMils < 800 && <span className="limit-warning"> (800 mil minimum)</span>}
                           </div>
                         )}
                         {s.indirect && (
-                          <div className="indirect-fire">
+                          <div className={`indirect-fire ${s.indirect.angleMils < 800 ? 'elevation-exceeded' : ''}`}>
                             Indirect: {s.indirect.angleDeg.toFixed(2)}° / {s.indirect.angleMils} mils — tof {s.indirect.tof ? s.indirect.tof.toFixed(2) + 's' : 'n/a'}
+                            {s.indirect.angleMils < 800 && <span className="limit-warning"> (800 mil minimum)</span>}
                           </div>
                         )}
                       </div>
@@ -889,10 +855,10 @@ export default function App() {
                 <div className="adjustment-group">
                   <label>Add (farther) - {fireAdjustments.add}m</label>
                   <div className="adjustment-buttons">
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={amount} onClick={() => adjustFire('add', amount)}>+{amount}</button>
                     ))}
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={`-${amount}`} onClick={() => adjustFire('add', -amount)}>-{amount}</button>
                     ))}
                     <button onClick={() => setFireAdjustments(prev => ({...prev, add: 0}))}>Clear</button>
@@ -902,10 +868,10 @@ export default function App() {
                 <div className="adjustment-group">
                   <label>Drop (closer) - {fireAdjustments.drop}m</label>
                   <div className="adjustment-buttons">
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={amount} onClick={() => adjustFire('drop', amount)}>+{amount}</button>
                     ))}
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={`-${amount}`} onClick={() => adjustFire('drop', -amount)}>-{amount}</button>
                     ))}
                     <button onClick={() => setFireAdjustments(prev => ({...prev, drop: 0}))}>Clear</button>
@@ -915,10 +881,10 @@ export default function App() {
                 <div className="adjustment-group">
                   <label>Left - {fireAdjustments.left}m</label>
                   <div className="adjustment-buttons">
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={amount} onClick={() => adjustFire('left', amount)}>+{amount}</button>
                     ))}
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={`-${amount}`} onClick={() => adjustFire('left', -amount)}>-{amount}</button>
                     ))}
                     <button onClick={() => setFireAdjustments(prev => ({...prev, left: 0}))}>Clear</button>
@@ -928,10 +894,10 @@ export default function App() {
                 <div className="adjustment-group">
                   <label>Right - {fireAdjustments.right}m</label>
                   <div className="adjustment-buttons">
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={amount} onClick={() => adjustFire('right', amount)}>+{amount}</button>
                     ))}
-                    {[5, 10, 25].map(amount => (
+                    {[10, 50].map(amount => (
                       <button key={`-${amount}`} onClick={() => adjustFire('right', -amount)}>-{amount}</button>
                     ))}
                     <button onClick={() => setFireAdjustments(prev => ({...prev, right: 0}))}>Clear</button>
@@ -942,6 +908,117 @@ export default function App() {
                 Apply Fire Adjustments
               </button>
             </div>
+          </div>
+        )}
+
+        {tab === 'sheaf' && (
+          <div className="tab-content">
+            <div className="input-section">
+              <h4>Sheaf Configuration</h4>
+              <div className="sheaf-controls">
+                <div className="sheaf-type-selector">
+                  <label>Distribution Type</label>
+                  <select value={sheafType} onChange={e => setSheafType(e.target.value)}>
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                    <option value="linear">Linear</option>
+                    <option value="rectangular">Rectangular</option>
+                  </select>
+                </div>
+                <div className="sheaf-spread">
+                  <label>Spread (meters)</label>
+                  <input 
+                    type="number" 
+                    value={sheafSpread} 
+                    onChange={e => setSheafSpread(Number(e.target.value))} 
+                    min="10" 
+                    max="200"
+                  />
+                </div>
+              </div>
+              <div className="sheaf-description">
+                <small>
+                  {sheafType === 'open' && 'Open: Mortars spread perpendicular to target bearing, alternating sides'}
+                  {sheafType === 'closed' && 'Closed: Tight spacing perpendicular to target bearing'}
+                  {sheafType === 'linear' && 'Linear: Mortars spread along the target bearing line'}
+                  {sheafType === 'rectangular' && 'Rectangular: 2D grid pattern around target'}
+                </small>
+              </div>
+            </div>
+
+            <div className="input-section">
+              <h4>Mortar Positions</h4>
+              <div className="mortars-list">
+                {mortars.map((mortar) => (
+                  <div key={mortar.id} className="mortar-item">
+                    <div className="mortar-header">
+                      <input 
+                        value={mortar.label} 
+                        onChange={e => updateMortar(mortar.id, 'label', e.target.value)}
+                        className="mortar-label"
+                      />
+                      {mortars.length > 1 && (
+                        <button 
+                          onClick={() => deleteMortar(mortar.id)}
+                          className="delete-mortar"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <div className="mortar-coordinates">
+                      <div className="coordinate-input">
+                        <label>Easting</label>
+                        <input 
+                          value={mortar.easting} 
+                          onChange={e => updateMortar(mortar.id, 'easting', e.target.value)} 
+                          placeholder="048"
+                        />
+                      </div>
+                      <div className="coordinate-input">
+                        <label>Northing</label>
+                        <input 
+                          value={mortar.northing} 
+                          onChange={e => updateMortar(mortar.id, 'northing', e.target.value)} 
+                          placeholder="120"
+                        />
+                      </div>
+                      <div className="elevation-input">
+                        <label>Elevation (m)</label>
+                        <input 
+                          type="number" 
+                          value={mortar.elevation} 
+                          onChange={e => updateMortar(mortar.id, 'elevation', Number(e.target.value))} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={addMortar} className="add-mortar-btn">
+                + Add Mortar
+              </button>
+            </div>
+
+            {targetValid && (
+              <div className="input-section">
+                <h4>Sheaf Distribution Results</h4>
+                <div className="sheaf-results">
+                  {calculateSheafDistribution().map((result, index) => (
+                    <div key={result.mortar.id} className="sheaf-result-item">
+                      <div className="result-header">
+                        <strong>{result.mortar.label}</strong>
+                      </div>
+                      <div className="result-data">
+                        <div>Target: {Math.round(result.targetE)}, {Math.round(result.targetN)}</div>
+                        <div>Range: {result.range.toFixed(1)}m</div>
+                        <div>Bearing: {result.bearing.toFixed(1)}° / {result.bearingMils} mils</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
