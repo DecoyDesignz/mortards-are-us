@@ -1,0 +1,22 @@
+Create a balistic calculator that turns a grid location into a bearing and deflection that i can use for arma reforger mortars
+
+The calculator must have these capabilities:
+
+Have an imput for mortar location and altitude
+Have an imput for target location and altitude
+Have a time of flight
+Display the range from the mortar
+Display the deflection and elevation in both Mils 6400 and Degrees 360
+Automatically select the best charge ring that will reach the target
+Give multiple charge solutions depending on range of the target
+Have an imput for adjust fire that takes you to the adjustment options
+Allows for adjustment of the fall of shot using Add, drop, left and right and adjust off of a set direction being expressed in either mils or degrees
+Have an imput for fire for effect
+Have sheaf distributions dependant on how many mortars are available and allow the calculator to individually imput each mortar location
+Sheaf distributions: open, closed, liniar, rectangular
+open sheaf will keep each round landing atleast 50m around the target location minimum mortars needed
+closed sheaf will keep each round landing on the target location
+Liniar sheaf will create an aimpoint for each mortar in a line, this will also have the abillity to change the disance between each round and the overall length and the attitude of the liniar spread
+Allow for multiple missions and automatically save in a list once created
+Allow for the ability to create target lists, a named folder that allows for multiple targets to be saved within
+Allow for these targets and lists to be deleted

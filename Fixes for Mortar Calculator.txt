@@ -1,0 +1,5 @@
+Fixes for Mortar Calculator
+
+Change the adjust fire tab to allow for an observer bearing where the adjust fire directions are based on the bearing given, This is optional and if a bearing is not given then the adjustments are based off the mortar tube direction.
+
+Eventually add Sheaf Distributions <--- ENSURE SCOOB SEES THIS TO MAKE SURE IT'S CORRECT!!!
