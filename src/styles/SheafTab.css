@@ -1,0 +1,24 @@
+:root {
+  /* reuse existing CSS variables from App.css via :root scope */
+}
+
+/* Sheaf-specific overrides */
+/* Make bearings use orange accent instead of blue in sheaf context */
+.sheaf-tab .bearing-input-container {
+  background: rgba(255, 107, 53, 0.05); /* orange tint */
+  border-color: var(--accent-orange) !important;
+}
+.sheaf-tab .bearing-input:focus {
+  border-color: var(--accent-orange) !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2) !important;
+}
+.sheaf-tab .bearing-unit-select:focus {
+  border-color: var(--accent-orange) !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2) !important;
+}
+
+/* Mortar card accent should be orange in sheaf tab */
+.sheaf-tab .mortar-item {
+  border-left-color: var(--accent-orange) !important;
+}
+

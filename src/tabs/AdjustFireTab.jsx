@@ -1,5 +1,6 @@
 import React from 'react';
 import { rangeCalculation } from '../Calculations';
+import '../styles/AdjustTab.css';
 import { adjustFireState } from '../controllers/AdjustFireController';
 
 export default function AdjustFireTab({

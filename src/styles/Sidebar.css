@@ -1,0 +1,14 @@
+/* Left Sidebar specific styles extracted from App.css */
+
+.sidebar { width: 380px; padding: 24px; background: linear-gradient(180deg, var(--military-dark) 0%, var(--military-green) 100%); border-right: 2px solid var(--accent-orange); box-shadow: 4px 0 12px rgba(0,0,0,0.4); overflow-y: auto; height: 100vh; }
+.sidebar .header h1 { color: var(--accent-orange); margin: 0; font-size: 22px; letter-spacing: 0.6px; }
+.sidebar .header p { margin: 6px 0 16px; opacity: 0.8; }
+
+.coordinate-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.elevation-input label { font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+.elevation-input input { padding: 12px 16px; background: var(--input-bg); border: 2px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 600; }
+
+.actions { margin-top: 12px; }
+.reset-btn { background: var(--military-light); border: 2px solid var(--border-color); color: var(--text-primary); padding: 12px 16px; border-radius: 8px; font-weight: 800; cursor: pointer; }
+.reset-btn:hover { border-color: var(--accent-orange); filter: brightness(1.1); }
+

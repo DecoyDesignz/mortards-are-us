@@ -1,0 +1,52 @@
+/* Right Sidebar specific styles extracted from App.css */
+
+.right-sidebar {
+  position: fixed;
+  top: 0;
+  right: -560px;
+  width: 560px;
+  height: 100vh;
+  background: linear-gradient(135deg, var(--military-dark) 0%, var(--military-green) 100%);
+  border-left: 2px solid var(--accent-orange);
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.4);
+  transition: right 0.3s ease;
+  z-index: 1000;
+  padding: 24px;
+  overflow-y: auto;
+}
+.right-sidebar.open { right: 0; }
+
+.right-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--accent-orange);
+}
+.right-sidebar-header .title {
+  color: var(--accent-orange);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-size: 18px;
+}
+
+/* Inherit tab styles from main Tabs.css */
+.right-tab-content {
+  padding-top: 8px;
+  animation: fadeIn 0.3s ease;
+}
+
+.right-sidebar-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999; }
+
+/* Right sidebar responsive width */
+@media (max-width: 1600px) { .right-sidebar { width: 520px; right: -520px; } }
+@media (max-width: 1400px) { .right-sidebar { width: 460px; right: -460px; } }
+@media (max-width: 1200px) { .right-sidebar { width: 380px; right: -380px; } }
+
+/* Right launcher button */
+.right-launcher { position: fixed; top: 20px; right: 16px; z-index: 1001; }
+.right-launcher button { background: var(--accent-orange); color: var(--background-dark); border: 2px solid var(--accent-orange); border-radius: 18px; padding: 10px 14px; font-weight: 800; letter-spacing: 0.6px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,188,212,0.3); }
+.right-launcher button:hover { filter: brightness(1.1); }
+.right-launcher.hidden { display: none; }
+

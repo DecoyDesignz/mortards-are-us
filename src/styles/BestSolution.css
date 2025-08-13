@@ -1,0 +1,62 @@
+/* Best Solution styles moved from App.css */
+.best-solution {
+  background: linear-gradient(135deg, var(--background-medium) 0%, var(--military-light) 100%);
+  border: 2px solid var(--accent-orange);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+  animation: fadeIn 0.5s ease;
+}
+
+.best-solution h3 {
+  color: var(--accent-orange);
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 16px;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.solution-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.solution-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-blue);
+}
+
+.solution-item .label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.solution-item .value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Military-style text effects */
+.best-solution h3::before {
+  content: "◆ ";
+  color: var(--accent-blue);
+}
+
+.best-solution h3::after {
+  content: " ◆";
+  color: var(--accent-blue);
+}

@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
+import './styles/theme.css';
+import './styles/theme.css';
+import './styles/Common.css';
+import './styles/Sidebar.css';
 import './App.css';
-import { parseCoordinate, degreesToMils } from './Utilities';
+import './styles/RightSidebar.css';
+import { parseCoordinate, degreesToMils, milsToDegrees } from './Utilities';
 import BallisticsSimulationDisplay from './BallisticsSimulationDisplay';
 import { simulateTrajectory, objectiveFunction, goldenSectionSearch, rangeCalculation, mortarParameters } from './Calculations';
 
@@ -46,6 +51,14 @@ export default function App() {
 
   const [sheafType, setSheafType] = useState('open'); // 'open', 'closed', 'linear', 'rectangular'
   const [sheafSpread, setSheafSpread] = useState(50); // meters between mortars
+
+  // Sheaf-specific target and attitude
+  const [sheafTargetEasting, setSheafTargetEasting] = useState('');
+  const [sheafTargetNorthing, setSheafTargetNorthing] = useState('');
+  const [sheafTargetElev, setSheafTargetElev] = useState(''); // optional target elevation for sheaf
+  const [sheafAttitude, setSheafAttitude] = useState(''); // bearing/attitude for sheaf orientation
+  const [sheafAttitudeUnit, setSheafAttitudeUnit] = useState('degrees'); // 'degrees' | 'mils'
+  const [activeMortarIndex, setActiveMortarIndex] = useState(0);
 
   const [solutions, setSolutions] = useState([]); // per-ring solutions
   const [chosenIndex, setChosenIndex] = useState(0);
@@ -342,7 +355,8 @@ export default function App() {
 
   // Functions for managing mortars in sheaf tab
   const addMortar = () => {
-    const newId = Math.max(...mortars.map(m => m.id)) + 1;
+    const nextIndex = mortars.length; // new mortar will be at the end
+    const newId = (mortars.length ? Math.max(...mortars.map(m => m.id)) : 0) + 1;
     setMortars([...mortars, {
       id: newId,
       easting: '',
@@ -350,11 +364,22 @@ export default function App() {
       elevation: 0,
       label: `Mortar ${newId}`
     }]);
+    setActiveMortarIndex(nextIndex);
   };
 
   const deleteMortar = (id) => {
     if (mortars.length > 1) {
-      setMortars(mortars.filter(m => m.id !== id));
+      const delIndex = mortars.findIndex(m => m.id === id);
+      const newMortars = mortars.filter(m => m.id !== id);
+      setMortars(newMortars);
+      // Adjust active index to remain valid and natural
+      let newActive = activeMortarIndex;
+      if (delIndex !== -1) {
+        if (activeMortarIndex > delIndex) newActive = activeMortarIndex - 1;
+        else if (activeMortarIndex === delIndex) newActive = Math.max(0, activeMortarIndex - 1);
+      }
+      if (newActive >= newMortars.length) newActive = Math.max(0, newMortars.length - 1);
+      setActiveMortarIndex(newActive);
     }
   };
 
@@ -366,50 +391,75 @@ export default function App() {
 
   // Calculate sheaf distribution
   const calculateSheafDistribution = () => {
-    if (!targetValid || mortars.length < 2) return [];
+    if (mortars.length < 1) return [];
 
-    const targetE = targetEastingPrecise ?? targetEastingParsed;
-    const targetN = targetNorthingPrecise ?? targetNorthingParsed;
-    const { bearingDeg } = rangeCalculation(
-      mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-      targetE, targetN, targetElev || 0
-    );
+    // Choose base target for sheaf: sheaf-specific if valid, otherwise main target (precise if available)
+    const sheafTargetEParsed = parseCoordinate(sheafTargetEasting);
+    const sheafTargetNParsed = parseCoordinate(sheafTargetNorthing);
+    const sheafElevParsed = sheafTargetElev === '' ? null : Number(sheafTargetElev);
 
-    const bearingRad = bearingDeg * Math.PI / 180;
+    // All-or-nothing: if any of E/N/Elev is missing, fallback entirely to left sidebar target
+    const hasFullSheafTarget = sheafTargetEParsed != null && sheafTargetNParsed != null && sheafElevParsed != null && !isNaN(sheafElevParsed);
+
+    const baseTargetE = hasFullSheafTarget ? sheafTargetEParsed : (targetEastingPrecise ?? targetEastingParsed);
+    const baseTargetN = hasFullSheafTarget ? sheafTargetNParsed : (targetNorthingPrecise ?? targetNorthingParsed);
+    const baseTargetElev = hasFullSheafTarget ? sheafElevParsed : (targetElev || 0);
+
+    if (baseTargetE == null || baseTargetN == null) return [];
+
+    // Determine sheaf orientation bearing (degrees)
+    let sheafBearingDeg = null;
+    const attNum = Number(sheafAttitude);
+    if (!isNaN(attNum) && sheafAttitude !== '') {
+      sheafBearingDeg = sheafAttitudeUnit === 'mils' ? milsToDegrees(attNum) : attNum;
+    } else if (mortarValid) {
+      const { bearingDeg } = rangeCalculation(
+        mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+        baseTargetE, baseTargetN, baseTargetElev
+      );
+      sheafBearingDeg = bearingDeg;
+    } else {
+      sheafBearingDeg = 0; // default orientation if none provided
+    }
+
+    // Normalize to [0, 360)
+    sheafBearingDeg = ((sheafBearingDeg % 360) + 360) % 360;
+
+    const bearingRad = sheafBearingDeg * Math.PI / 180;
     const perpBearingRad = bearingRad + Math.PI / 2;
 
     return mortars.map((mortar, index) => {
-      const mortarEastingParsed = parseCoordinate(mortar.easting);
-      const mortarNorthingParsed = parseCoordinate(mortar.northing);
+      const mE = parseCoordinate(mortar.easting);
+      const mN = parseCoordinate(mortar.northing);
 
-      if (!mortarEastingParsed || !mortarNorthingParsed) return null;
+      if (mE == null || mN == null) return null;
 
       let targetAdjustmentE = 0;
       let targetAdjustmentN = 0;
 
       switch (sheafType) {
-        case 'open':
+        case 'open': {
           // Spread perpendicular to bearing, alternating sides
           const openOffset = Math.floor(index / 2) * sheafSpread * (index % 2 === 0 ? 1 : -1);
           targetAdjustmentE = openOffset * Math.sin(perpBearingRad);
           targetAdjustmentN = openOffset * Math.cos(perpBearingRad);
           break;
-
-        case 'closed':
+        }
+        case 'closed': {
           // Tight spacing perpendicular to bearing
           const closedOffset = (index - (mortars.length - 1) / 2) * (sheafSpread / 2);
           targetAdjustmentE = closedOffset * Math.sin(perpBearingRad);
           targetAdjustmentN = closedOffset * Math.cos(perpBearingRad);
           break;
-
-        case 'linear':
+        }
+        case 'linear': {
           // Spread along the bearing line
           const linearOffset = (index - (mortars.length - 1) / 2) * sheafSpread;
           targetAdjustmentE = linearOffset * Math.sin(bearingRad);
           targetAdjustmentN = linearOffset * Math.cos(bearingRad);
           break;
-
-        case 'rectangular':
+        }
+        case 'rectangular': {
           // 2D grid pattern
           const cols = Math.ceil(Math.sqrt(mortars.length));
           const row = Math.floor(index / cols);
@@ -421,16 +471,17 @@ export default function App() {
           targetAdjustmentE = rectOffsetE + rectOffsetE2;
           targetAdjustmentN = rectOffsetN + rectOffsetN2;
           break;
+        }
+        default:
+          break;
       }
 
-      const baseTargetE = targetEastingPrecise ?? targetEastingParsed;
-      const baseTargetN = targetNorthingPrecise ?? targetNorthingParsed;
       const adjustedTargetE = baseTargetE + targetAdjustmentE;
       const adjustedTargetN = baseTargetN + targetAdjustmentN;
 
       const { horizontalDistance, bearingDeg: mortarBearing } = rangeCalculation(
-        mortarEastingParsed, mortarNorthingParsed, mortar.elevation || 0,
-        adjustedTargetE, adjustedTargetN, targetElev || 0
+        mE, mN, mortar.elevation || 0,
+        adjustedTargetE, adjustedTargetN, baseTargetElev
       );
 
       return {
@@ -439,7 +490,7 @@ export default function App() {
         targetN: adjustedTargetN,
         range: horizontalDistance,
         bearing: mortarBearing,
-        bearingMils: Math.round(mortarBearing * 17.7778)
+        bearingMils: Math.round(degreesToMils(mortarBearing))
       };
     }).filter(Boolean);
   };
@@ -523,6 +574,12 @@ export default function App() {
             targetValid={targetValid}
             sheafType={sheafType} setSheafType={setSheafType}
             sheafSpread={sheafSpread} setSheafSpread={setSheafSpread}
+            sheafTargetEasting={sheafTargetEasting} setSheafTargetEasting={setSheafTargetEasting}
+            sheafTargetNorthing={sheafTargetNorthing} setSheafTargetNorthing={setSheafTargetNorthing}
+            sheafTargetElev={sheafTargetElev} setSheafTargetElev={setSheafTargetElev}
+            sheafAttitude={sheafAttitude} setSheafAttitude={setSheafAttitude}
+            sheafAttitudeUnit={sheafAttitudeUnit} setSheafAttitudeUnit={setSheafAttitudeUnit}
+            activeMortarIndex={activeMortarIndex} setActiveMortarIndex={setActiveMortarIndex}
             calculateSheafDistribution={calculateSheafDistribution}
           />
         )}
@@ -587,6 +644,12 @@ export default function App() {
             targetValid={targetValid}
             sheafType={sheafType} setSheafType={setSheafType}
             sheafSpread={sheafSpread} setSheafSpread={setSheafSpread}
+            sheafTargetEasting={sheafTargetEasting} setSheafTargetEasting={setSheafTargetEasting}
+            sheafTargetNorthing={sheafTargetNorthing} setSheafTargetNorthing={setSheafTargetNorthing}
+            sheafTargetElev={sheafTargetElev} setSheafTargetElev={setSheafTargetElev}
+            sheafAttitude={sheafAttitude} setSheafAttitude={setSheafAttitude}
+            sheafAttitudeUnit={sheafAttitudeUnit} setSheafAttitudeUnit={setSheafAttitudeUnit}
+            activeMortarIndex={activeMortarIndex} setActiveMortarIndex={setActiveMortarIndex}
             calculateSheafDistribution={calculateSheafDistribution}
           />
         )}

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { g_const, rangeCalculation } from './Calculations';
+import './styles/Canvas.css';
+
 
 export default function BallisticsSimulationDisplay({
   mortarValid,

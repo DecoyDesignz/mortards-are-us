@@ -1,0 +1,18 @@
+:root {
+  --military-green: #1a2a1a;
+  --military-dark: #0f1a0f;
+  --military-light: #2a3a2a;
+  --accent-orange: #ff6b35;
+  --accent-blue: #00bcd4;
+  --text-primary: #f0f8f0;
+  --text-secondary: #c0d0c0;
+  --text-warning: #ffab00;
+  --background-dark: #080c08;
+  --background-medium: #121512;
+  --border-color: #2a3a2a;
+  --success-green: #4caf50;
+  --error-red: #f44336;
+  --input-bg: #1a1f1a;
+  --hover-bg: #1f2a1f;
+}
+

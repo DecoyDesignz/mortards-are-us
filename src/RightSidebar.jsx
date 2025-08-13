@@ -18,8 +18,12 @@ export default function RightSidebar({
         </div>
 
         <div className="tabs">
-          <button className={activeTab === 'adjust' ? 'active' : ''} onClick={() => setActiveTab('adjust')}>Adjust Fire</button>
-          <button className={activeTab === 'sheaf' ? 'active' : ''} onClick={() => setActiveTab('sheaf')}>Sheaf</button>
+          <button className={activeTab === 'adjust' ? 'active' : ''} onClick={() => setActiveTab('adjust')}>
+            Adjust Fire
+          </button>
+          <button className={activeTab === 'sheaf' ? 'active' : ''} onClick={() => setActiveTab('sheaf')}>
+            Sheaf
+          </button>
         </div>
 
         <div className="right-tab-content">

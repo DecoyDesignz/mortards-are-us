@@ -1,0 +1,33 @@
+/* Canvas styles moved from App.css */
+.canvas-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--background-dark);
+}
+
+canvas {
+  border: 2px solid var(--military-green);
+  border-radius: 8px;
+  background: #000;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+  max-width: 100%;
+  height: auto;
+}
+
+/* Responsive canvas sizing */
+@media (max-width: 1200px) {
+  .canvas-container canvas {
+    width: 100%;
+    max-width: 900px;
+  }
+}
+
+@media (max-width: 900px) {
+  .canvas-container {
+    height: 45vh;
+  }
+}

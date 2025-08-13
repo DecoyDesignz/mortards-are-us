@@ -5,6 +5,10 @@ export function degreesToMils(degrees) {
   return degrees * 17.7777777778;
 }
 
+export function milsToDegrees(mils) {
+  return mils / 17.7777777778;
+}
+
 // Parse coordinate inputs to full UTM values
 export function parseCoordinate(input) {
   if (!input || isNaN(Number(input))) return null;

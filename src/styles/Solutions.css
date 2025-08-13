@@ -1,0 +1,97 @@
+/* Solutions list styles moved from App.css */
+.solutions-list h4 {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.no-solution {
+  color: var(--error-red);
+  background: rgba(244, 67, 54, 0.1);
+  padding: 12px 16px;
+  border-radius: 6px;
+  border-left: 4px solid var(--error-red);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.solution-row {
+  background: var(--background-medium);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.solution-row:hover {
+  border-color: var(--accent-blue);
+  background: var(--hover-bg);
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(0, 188, 212, 0.2);
+}
+
+.solution-row.chosen {
+  border-color: var(--accent-orange);
+  background: rgba(255, 107, 53, 0.1);
+  box-shadow: 0 3px 12px rgba(255, 107, 53, 0.3);
+}
+
+.solution-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ring-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.error-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.solution-details {
+  font-size: 12px;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.direct-fire {
+  color: var(--accent-blue);
+  margin-bottom: 3px;
+}
+
+.indirect-fire {
+  color: var(--accent-orange);
+}
+
+/* Animation for solution rows */
+.solution-row {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
