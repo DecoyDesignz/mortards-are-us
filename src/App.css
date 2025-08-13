@@ -408,11 +408,30 @@ html, body, #root {
 .canvas-container {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column; /* stack canvas and solution vertically */
+  align-items: center; /* center horizontally */
+  justify-content: center; /* keep canvas centered vertically */
   padding: 24px;
   background: var(--background-dark);
 }
+
+/* Solutions dropdown styling */
+.solution-select {
+  width: 100%;
+  background: var(--background-medium);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  margin: 8px 0 12px;
+}
+.solution-select:focus {
+  outline: none;
+  border-color: var(--accent-orange);
+  box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.15);
+}
+
 
 canvas {
   border: 2px solid var(--military-green);
@@ -576,6 +595,21 @@ p.small{
   box-shadow: 0 0 0 3px rgba(0, 188, 212, 0.2);
 }
 
+
+/* Step input styling similar to bearing input */
+.step-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.step-label { opacity: 0.8; font-weight: 600; }
+.step-input {
+  max-width: 120px;
+  appearance: textfield;
+}
+.step-unit { opacity: 0.6; }
+
 .bearing-info {
   display: flex;
   align-items: center;
@@ -715,7 +749,7 @@ p.small{
   border: 2px solid var(--border-color);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 9px;
+  font-size: 15px;
   font-weight: 700;
   text-transform: uppercase;
   cursor: pointer;
@@ -786,33 +820,7 @@ p.small{
   color: white;
 }
 
-/* Mini +10 buttons positioned inside D-Pad */
-.dpad-mini {
-  position: absolute;
-  width: 28px;
-  height: 18px;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  background: var(--background-medium);
-  color: var(--text-secondary);
-  font-size: 10px;
-  line-height: 18px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
 .unified-dpad-container { position: relative; }
-
-.mini-up { top: -12px; left: 50%; transform: translateX(-50%); }
-.mini-down { bottom: -12px; left: 50%; transform: translateX(-50%); }
-.mini-left { left: -12px; top: 50%; transform: translateY(-50%); }
-.mini-right { right: -12px; top: 50%; transform: translateY(-50%); }
-
-.dpad-mini:hover {
-  border-color: var(--accent-orange);
-  color: var(--text-primary);
-}
 
 /* Value Display */
 .adjustment-value-display {
@@ -833,7 +841,7 @@ p.small{
 }
 
 .adjustment-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -842,7 +850,7 @@ p.small{
 }
 
 .adjustment-value {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--accent-orange);
   font-family: 'JetBrains Mono', monospace;
@@ -1254,3 +1262,13 @@ p.small{
 }
 .right-launcher button:hover { filter: brightness(1.1); }
 .right-launcher.hidden { display: none; }
+
+/* Best solution below canvas and always visible */
+.best-solution-global {
+  margin: 30px auto 0; /* center under canvas */
+  position: relative; /* ensure above backdrop */
+  z-index: 1002;
+  width: 100%;
+  max-width: 600px; /* keep readable width */
+  padding-top: 12px;
+}

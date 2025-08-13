@@ -1,11 +1,8 @@
 import React from 'react';
-import { rangeCalculation } from '../Calculations';
+
 
 export default function FireMissionTab({
   mortarValid, targetValid,
-  mortarEastingParsed, mortarNorthingParsed,
-  targetEastingParsed, targetNorthingParsed,
-  mortarElev, targetElev,
   solutions, chosenIndex, setChosenIndex,
 }) {
   if (!mortarValid || !targetValid) {
@@ -16,44 +13,51 @@ export default function FireMissionTab({
     );
   }
 
-  const { horizontalDistance, bearingDeg } = rangeCalculation(
-    mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-    targetEastingParsed, targetNorthingParsed, targetElev || 0
-  );
-
   return (
     <div className="tab-content">
-      <div className="target-info">
-        <div>Range: {horizontalDistance.toFixed(1)} m</div>
-        <div>Bearing: {bearingDeg.toFixed(2)}° / {(bearingDeg*17.7778).toFixed(2)} mils</div>
-      </div>
       <div className="solutions-list">
         <h4>Available Solutions</h4>
-        {solutions.length === 0 && (
+        {solutions.length === 0 ? (
           <div className="no-solution">No viable solution found (target may be out of range)</div>
+        ) : (
+          <>
+            <select
+              className="solution-select"
+              value={chosenIndex}
+              onChange={e => setChosenIndex(Number(e.target.value))}
+            >
+              {solutions.map((s, idx) => (
+                <option key={s.label} value={idx}>
+                  {s.label} — err {(Math.min(s.direct ? s.direct.obj : Infinity, s.indirect ? s.indirect.obj : Infinity)).toFixed(2)}
+                </option>
+              ))}
+            </select>
+
+            {/* Details for selected solution only */}
+            {solutions[chosenIndex] && (
+              <div className="solution-row chosen">
+                <div className="solution-header">
+                  <div className="ring-name">{solutions[chosenIndex].label}</div>
+                  <div className="error-value">{(Math.min(solutions[chosenIndex].direct ? solutions[chosenIndex].direct.obj : Infinity, solutions[chosenIndex].indirect ? solutions[chosenIndex].indirect.obj : Infinity)).toFixed(2)} err</div>
+                </div>
+                <div className="solution-details">
+                  {solutions[chosenIndex].direct && (
+                    <div className={`direct-fire ${solutions[chosenIndex].direct.angleMils < 800 ? 'elevation-exceeded' : ''}`}>
+                      Direct: {solutions[chosenIndex].direct.angleDeg.toFixed(2)}° / {solutions[chosenIndex].direct.angleMils} mils — tof {solutions[chosenIndex].direct.tof ? solutions[chosenIndex].direct.tof.toFixed(2) + 's' : 'n/a'}
+                      {solutions[chosenIndex].direct.angleMils < 800 && <span className="limit-warning"> (800 mil minimum)</span>}
+                    </div>
+                  )}
+                  {solutions[chosenIndex].indirect && (
+                    <div className={`indirect-fire ${solutions[chosenIndex].indirect.angleMils < 800 ? 'elevation-exceeded' : ''}`}>
+                      Indirect: {solutions[chosenIndex].indirect.angleDeg.toFixed(2)}° / {solutions[chosenIndex].indirect.angleMils} mils — tof {solutions[chosenIndex].indirect.tof ? solutions[chosenIndex].indirect.tof.toFixed(2) + 's' : 'n/a'}
+                      {solutions[chosenIndex].indirect.angleMils < 800 && <span className="limit-warning"> (800 mil minimum)</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
         )}
-        {solutions.map((s, idx) => (
-          <div key={s.label} className={`solution-row ${idx === chosenIndex ? 'chosen' : ''}`} onClick={() => setChosenIndex(idx)}>
-            <div className="solution-header">
-              <div className="ring-name">{s.label}</div>
-              <div className="error-value">{(Math.min(s.direct ? s.direct.obj : Infinity, s.indirect ? s.indirect.obj : Infinity)).toFixed(2)} err</div>
-            </div>
-            <div className="solution-details">
-              {s.direct && (
-                <div className={`direct-fire ${s.direct.angleMils < 800 ? 'elevation-exceeded' : ''}`}>
-                  Direct: {s.direct.angleDeg.toFixed(2)}° / {s.direct.angleMils} mils — tof {s.direct.tof ? s.direct.tof.toFixed(2) + 's' : 'n/a'}
-                  {s.direct.angleMils < 800 && <span className="limit-warning"> (800 mil minimum)</span>}
-                </div>
-              )}
-              {s.indirect && (
-                <div className={`indirect-fire ${s.indirect.angleMils < 800 ? 'elevation-exceeded' : ''}`}>
-                  Indirect: {s.indirect.angleDeg.toFixed(2)}° / {s.indirect.angleMils} mils — tof {s.indirect.tof ? s.indirect.tof.toFixed(2) + 's' : 'n/a'}
-                  {s.indirect.angleMils < 800 && <span className="limit-warning"> (800 mil minimum)</span>}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

@@ -8,10 +8,14 @@ export default function BallisticsSimulationDisplay({
   mortarNorthingParsed,
   targetEastingParsed,
   targetNorthingParsed,
+  targetEastingPrecise,
+  targetNorthingPrecise,
   mortarElev,
   targetElev,
   solutions,
-  chosenIndex
+  chosenIndex,
+  bestSolution,
+  solutionReason,
 }) {
   const canvasRef = useRef(null);
 
@@ -27,9 +31,11 @@ export default function BallisticsSimulationDisplay({
     ctx.fillRect(0, 0, W, H);
 
     if (mortarValid && targetValid) {
+      const targetE = targetEastingPrecise ?? targetEastingParsed;
+      const targetN = targetNorthingPrecise ?? targetNorthingParsed;
       const { horizontalDistance, bearingDeg } = rangeCalculation(
         mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-        targetEastingParsed, targetNorthingParsed, targetElev || 0
+        targetE, targetN, targetElev || 0
       );
 
       ctx.strokeStyle = '#333';
@@ -101,11 +107,27 @@ export default function BallisticsSimulationDisplay({
       ctx.fillText('Enter Mortar & Target coordinates on the left to compute firing solution.', 20, H / 2 - 10);
       ctx.fillText('Choose a ring from the list to visualize direct (cyan) and indirect (orange) arcs.', 20, H / 2 + 10);
     }
-  }, [mortarValid, targetValid, mortarElev, targetElev, solutions, chosenIndex, mortarEastingParsed, mortarNorthingParsed, targetEastingParsed, targetNorthingParsed]);
+  }, [mortarValid, targetValid, mortarElev, targetElev, solutions, chosenIndex, mortarEastingParsed, mortarNorthingParsed, targetEastingParsed, targetNorthingParsed, targetEastingPrecise, targetNorthingPrecise]);
 
   return (
     <div className="canvas-container">
       <canvas ref={canvasRef} width={1400} height={700} />
+      {bestSolution && (
+        <div className="best-solution best-solution-global">
+          <h3>FIRING SOLUTION</h3>
+          {solutionReason && (
+            <div className="solution-reason"><small>{solutionReason}</small></div>
+          )}
+          <div className="solution-grid">
+            <div className="solution-item"><span className="label">RING:</span><span className="value">{bestSolution.ring}</span></div>
+            <div className="solution-item"><span className="label">TYPE:</span><span className="value">{bestSolution.type}</span></div>
+            <div className="solution-item"><span className="label">ELEVATION:</span><span className="value">{bestSolution.solution.angleMils} MILS</span></div>
+            <div className="solution-item"><span className="label">BEARING:</span><span className="value">{bestSolution.bearingMils} MILS</span></div>
+            <div className="solution-item"><span className="label">RANGE:</span><span className="value">{bestSolution.range.toFixed(0)} M</span></div>
+            <div className="solution-item"><span className="label">TOF:</span><span className="value">{bestSolution.solution.tof.toFixed(1)} S</span></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,11 +6,14 @@ export default function AdjustFireTab({
   mortarValid, targetValid,
   mortarEastingParsed, mortarNorthingParsed,
   targetEastingParsed, targetNorthingParsed,
+  targetEastingPrecise, targetNorthingPrecise,
   mortarElev, targetElev,
   fireAdjustments, setFireAdjustments,
   adjustBearing, setAdjustBearing, bearingUnit, setBearingUnit,
+  autoBearingDeg,
   onApply,
 }) {
+  const [step, setStep] = React.useState(10);
   const adjustFire = (type, amount) => {
     setFireAdjustments(prev => adjustFireState(prev, type, amount));
   };
@@ -31,10 +34,16 @@ export default function AdjustFireTab({
             <div className="bearing-info">
               <div className="info-text">
                 {(() => {
-                  const { bearingDeg } = rangeCalculation(
-                    mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-                    targetEastingParsed, targetNorthingParsed, targetElev || 0
-                  );
+                  // Keep Adjust Fire auto bearing consistent with the app-level stabilized value
+                  const bearingDeg = (typeof autoBearingDeg === 'number') ? autoBearingDeg : (() => {
+                    const targetE = targetEastingPrecise ?? targetEastingParsed;
+                    const targetN = targetNorthingPrecise ?? targetNorthingParsed;
+                    const { bearingDeg } = rangeCalculation(
+                      mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+                      targetE, targetN, targetElev || 0
+                    );
+                    return bearingDeg;
+                  })();
                   return `Auto: ${bearingDeg.toFixed(1)}° / ${(bearingDeg * 17.7778).toFixed(1)} mils`;
                 })()}
               </div>
@@ -48,7 +57,18 @@ export default function AdjustFireTab({
         <div className="unified-fire-adjustment">
           <div className="adjustment-category unified-adjustments">
             <div className="category-header">
-              <div className="category-title">FIRE CONTROL</div>
+              <div className="step-input-row">
+                <label className="step-label">Step</label>
+                <input
+                  type="number"
+                  step={5}
+                  value={step}
+                  onChange={e => setStep(Math.max(1, Number(e.target.value)||0))}
+                  className="bearing-input step-input"
+                  placeholder="10"
+                />
+                <span className="step-unit">m</span>
+              </div>
               <div className="net-adjustments">
                 <div className="net-range">Range: {(fireAdjustments.add || 0) - (fireAdjustments.drop || 0)}m</div>
                 <div className="net-deflection">Deflection: {(fireAdjustments.right || 0) - (fireAdjustments.left || 0)}m</div>
@@ -79,16 +99,11 @@ export default function AdjustFireTab({
               </div>
 
               <div className="unified-dpad-container">
-                <button className="dpad-btn dpad-up" onClick={() => adjustFire('add', 50)}>ADD<br/>+50</button>
-                <button className="dpad-btn dpad-left" onClick={() => adjustFire('left', 50)}>LEFT<br/>+50</button>
+                <button className="dpad-btn dpad-up" onClick={() => adjustFire('add', step)}>+{step}</button>
+                <button className="dpad-btn dpad-left" onClick={() => adjustFire('left', step)}>+{step}</button>
                 <button className="dpad-btn dpad-center" onClick={() => setFireAdjustments({ add: 0, drop: 0, left: 0, right: 0 })}>RESET</button>
-                <button className="dpad-btn dpad-right" onClick={() => adjustFire('right', 50)}>RIGHT<br/>+50</button>
-                <button className="dpad-btn dpad-down" onClick={() => adjustFire('drop', 50)}>DROP<br/>+50</button>
-
-                <button className="dpad-mini mini-up" onClick={() => adjustFire('add', 10)}>+10</button>
-                <button className="dpad-mini mini-left" onClick={() => adjustFire('left', 10)}>+10</button>
-                <button className="dpad-mini mini-right" onClick={() => adjustFire('right', 10)}>+10</button>
-                <button className="dpad-mini mini-down" onClick={() => adjustFire('drop', 10)}>+10</button>
+                <button className="dpad-btn dpad-right" onClick={() => adjustFire('right', step)}>+{step}</button>
+                <button className="dpad-btn dpad-down" onClick={() => adjustFire('drop', step)}>+{step}</button>
               </div>
             </div>
 
@@ -102,4 +117,3 @@ export default function AdjustFireTab({
     </div>
   );
 }
-

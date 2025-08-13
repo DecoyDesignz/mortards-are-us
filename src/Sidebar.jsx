@@ -42,22 +42,7 @@ export default function Sidebar(props) {
         <p>Artillery Fire Mission Computer</p>
       </div>
 
-      {bestSolution && (
-        <div className="best-solution">
-          <h3>FIRING SOLUTION</h3>
-          {solutionReason && (
-            <div className="solution-reason"><small>{solutionReason}</small></div>
-          )}
-          <div className="solution-grid">
-            <div className="solution-item"><span className="label">RING:</span><span className="value">{bestSolution.ring}</span></div>
-            <div className="solution-item"><span className="label">TYPE:</span><span className="value">{bestSolution.type}</span></div>
-            <div className="solution-item"><span className="label">ELEVATION:</span><span className="value">{bestSolution.solution.angleMils} MILS</span></div>
-            <div className="solution-item"><span className="label">BEARING:</span><span className="value">{bestSolution.bearingMils} MILS</span></div>
-            <div className="solution-item"><span className="label">RANGE:</span><span className="value">{bestSolution.range.toFixed(0)} M</span></div>
-            <div className="solution-item"><span className="label">TOF:</span><span className="value">{bestSolution.solution.tof.toFixed(1)} S</span></div>
-          </div>
-        </div>
-      )}
+
 
       {/* Mortar position */}
       <div className="input-section">
@@ -97,13 +82,8 @@ export default function Sidebar(props) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs">
-        <button className={tab === 'direct' ? 'active' : ''} onClick={() => setTab('direct')}>Direct Fire</button>
-      </div>
-
       {/* Tab content */}
-      {tab === 'direct' && props.renderFireMissionTab?.()}
+      {props.renderFireMissionTab?.()}
 
       <div className="actions">
         <button className="reset-btn" onClick={props.onResetAll}>Reset All</button>

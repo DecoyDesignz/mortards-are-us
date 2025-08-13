@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import './App.css';
 import { parseCoordinate, degreesToMils } from './Utilities';
 import BallisticsSimulationDisplay from './BallisticsSimulationDisplay';
@@ -24,11 +24,18 @@ export default function App() {
   const [adjustBearing, setAdjustBearing] = useState(''); // Optional bearing for adjustments
   const [bearingUnit, setBearingUnit] = useState('degrees'); // 'degrees' or 'mils'
 
+
   const [mortarElev, setMortarElev] = useState(0);
   const [targetElev, setTargetElev] = useState(0);
 
+  // Precise target coordinates in meters (float), used for calculations
+  const [targetEastingPrecise, setTargetEastingPrecise] = useState(null);
+  const [targetNorthingPrecise, setTargetNorthingPrecise] = useState(null);
+
   const [tab, setTab] = useState('direct'); // 'direct', 'adjust', or 'sheaf'
   const [fireAdjustments, setFireAdjustments] = useState({ add: 0, drop: 0, left: 0, right: 0 });
+
+
 
   const [mortars, setMortars] = useState([
     { id: 1, easting: '', northing: '', elevation: 0, label: 'Mortar 1' }
@@ -56,34 +63,59 @@ export default function App() {
   const mortarValid = mortarEastingParsed !== null && mortarNorthingParsed !== null;
   const targetValid = targetEastingParsed !== null && targetNorthingParsed !== null;
 
-  // Store original target coordinates when they first become valid
+  // Stable auto-bearing: does not change for add/drop-only changes; updates on deflection
+  const autoBearingDeg = useMemo(() => {
+    if (!mortarValid || originalTargetEasting === null || originalTargetNorthing === null) return null;
+    const { bearingDeg: baseBearing } = rangeCalculation(
+      mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+      originalTargetEasting, originalTargetNorthing, targetElev || 0
+    );
+    const deflection = (fireAdjustments.right || 0) - (fireAdjustments.left || 0);
+    if (!deflection) return baseBearing;
+    const baseRad = baseBearing * Math.PI / 180;
+    const perpRad = baseRad + Math.PI / 2;
+    const adjE = originalTargetEasting + deflection * Math.sin(perpRad);
+    const adjN = originalTargetNorthing + deflection * Math.cos(perpRad);
+    const { bearingDeg } = rangeCalculation(
+      mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+      adjE, adjN, targetElev || 0
+    );
+    return bearingDeg;
+  }, [mortarValid, originalTargetEasting, originalTargetNorthing, fireAdjustments.right, fireAdjustments.left, mortarEastingParsed, mortarNorthingParsed, mortarElev, targetElev]);
+
+  // Store original target coordinates and precise copy when they first become valid
   useEffect(() => {
     if (targetValid && (originalTargetEasting === null || originalTargetNorthing === null)) {
       setOriginalTargetEasting(targetEastingParsed);
       setOriginalTargetNorthing(targetNorthingParsed);
+      setTargetEastingPrecise(targetEastingParsed);
+      setTargetNorthingPrecise(targetNorthingParsed);
     }
   }, [targetValid, targetEastingParsed, targetNorthingParsed, originalTargetEasting, originalTargetNorthing]);
 
-  // Reset original coordinates when target coordinates are manually changed
+
+  // Reset original and precise coordinates when target coordinates are manually changed
   useEffect(() => {
     if (targetValid) {
-      // Check if the current coordinates are significantly different from what would result from adjustments
       if (originalTargetEasting !== null && originalTargetNorthing !== null) {
         const expectedEasting = originalTargetEasting;
         const expectedNorthing = originalTargetNorthing;
-        const tolerance = 10; // 10 meter tolerance for coordinate parsing differences
+        const tolerance = 10;
 
         if (Math.abs(targetEastingParsed - expectedEasting) > tolerance ||
             Math.abs(targetNorthingParsed - expectedNorthing) > tolerance) {
-          // Coordinates were manually changed, update the original
+          // User edited inputs; update original and precise copies
           setOriginalTargetEasting(targetEastingParsed);
           setOriginalTargetNorthing(targetNorthingParsed);
+          setTargetEastingPrecise(targetEastingParsed);
+          setTargetNorthingPrecise(targetNorthingParsed);
         }
       }
     } else {
-      // Target coordinates cleared, reset original
       setOriginalTargetEasting(null);
       setOriginalTargetNorthing(null);
+      setTargetEastingPrecise(null);
+      setTargetNorthingPrecise(null);
     }
   }, [targetEasting, targetNorthing]);
 
@@ -96,10 +128,12 @@ export default function App() {
 
     if (!mortarValid || !targetValid) return;
 
-    // Calculate range and bearing using UTM coordinates
+    // Calculate range and bearing using precise coords when available
+    const targetE = targetEastingPrecise ?? targetEastingParsed;
+    const targetN = targetNorthingPrecise ?? targetNorthingParsed;
     const { horizontalDistance, bearingDeg } = rangeCalculation(
       mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-      targetEastingParsed, targetNorthingParsed, targetElev || 0
+      targetE, targetN, targetElev || 0
     );
 
     const heightLauncher = mortarElev || 0;
@@ -229,7 +263,23 @@ export default function App() {
         ring: best.label,
         type: useIndirect ? 'Indirect' : 'Direct',
         solution: useIndirect ? best.indirect : best.direct,
-        bearingMils: Math.round(best.bearingDeg * 17.7778),
+        bearingMils: (() => {
+          const hasUserBearing = adjustBearing !== '' && !isNaN(Number(adjustBearing));
+          if (hasUserBearing) {
+            const deg = bearingUnit === 'mils' ? Number(adjustBearing) / 17.7778 : Number(adjustBearing);
+            return Math.round(deg * 17.7778);
+          }
+          if (autoBearingDeg !== null && autoBearingDeg !== undefined) {
+            return Math.round(autoBearingDeg * 17.7778);
+          }
+          const targetE = targetEastingPrecise ?? targetEastingParsed;
+          const targetN = targetNorthingPrecise ?? targetNorthingParsed;
+          const { bearingDeg } = rangeCalculation(
+            mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+            targetE, targetN, targetElev || 0
+          );
+          return Math.round(bearingDeg * 17.7778);
+        })(),
         range: best.horizontalDistance,
         elevationExceeded: (useIndirect ? best.indirect?.angleMils : best.direct?.angleMils) < MIN_ELEVATION_MILS
       });
@@ -266,9 +316,11 @@ export default function App() {
   const calculateSheafDistribution = () => {
     if (!targetValid || mortars.length < 2) return [];
 
+    const targetE = targetEastingPrecise ?? targetEastingParsed;
+    const targetN = targetNorthingPrecise ?? targetNorthingParsed;
     const { bearingDeg } = rangeCalculation(
       mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-      targetEastingParsed, targetNorthingParsed, targetElev || 0
+      targetE, targetN, targetElev || 0
     );
 
     const bearingRad = bearingDeg * Math.PI / 180;
@@ -319,8 +371,10 @@ export default function App() {
           break;
       }
 
-      const adjustedTargetE = targetEastingParsed + targetAdjustmentE;
-      const adjustedTargetN = targetNorthingParsed + targetAdjustmentN;
+      const baseTargetE = targetEastingPrecise ?? targetEastingParsed;
+      const baseTargetN = targetNorthingPrecise ?? targetNorthingParsed;
+      const adjustedTargetE = baseTargetE + targetAdjustmentE;
+      const adjustedTargetN = baseTargetN + targetAdjustmentN;
 
       const { horizontalDistance, bearingDeg: mortarBearing } = rangeCalculation(
         mortarEastingParsed, mortarNorthingParsed, mortar.elevation || 0,
@@ -341,7 +395,7 @@ export default function App() {
   // Fire adjustment button helper
   // Use controller to apply adjustments and update target inputs
   function applyAdjustmentsAndRecalcController() {
-    const { targetEastingOut, targetNorthingOut } = applyAdjustmentsController({
+    const { targetEastingOut, targetNorthingOut, targetEastingPrecise: tE, targetNorthingPrecise: tN } = applyAdjustmentsController({
       mortarValid,
       targetValid,
       originalTargetEasting,
@@ -358,6 +412,10 @@ export default function App() {
     });
     setTargetEasting(targetEastingOut);
     setTargetNorthing(targetNorthingOut);
+    if (typeof tE === 'number' && typeof tN === 'number') {
+      setTargetEastingPrecise(tE);
+      setTargetNorthingPrecise(tN);
+    }
   }
 
   return (
@@ -402,6 +460,7 @@ export default function App() {
             fireAdjustments={fireAdjustments} setFireAdjustments={setFireAdjustments}
             adjustBearing={adjustBearing} setAdjustBearing={setAdjustBearing}
             bearingUnit={bearingUnit} setBearingUnit={setBearingUnit}
+            autoBearingDeg={autoBearingDeg}
             onApply={applyAdjustmentsAndRecalcController}
           />
         )}
@@ -429,7 +488,6 @@ export default function App() {
         }}
       />
 
-
       <BallisticsSimulationDisplay
         mortarValid={mortarValid}
         targetValid={targetValid}
@@ -437,11 +495,14 @@ export default function App() {
         mortarNorthingParsed={mortarNorthingParsed}
         targetEastingParsed={targetEastingParsed}
         targetNorthingParsed={targetNorthingParsed}
+        targetEastingPrecise={targetEastingPrecise}
+        targetNorthingPrecise={targetNorthingPrecise}
         mortarElev={mortarElev}
         targetElev={targetElev}
         solutions={solutions}
         chosenIndex={chosenIndex}
-
+        bestSolution={bestSolution}
+        solutionReason={solutionReason}
       />
 
       {/* Right launcher button - hidden when sidebar open */}
@@ -463,6 +524,7 @@ export default function App() {
             fireAdjustments={fireAdjustments} setFireAdjustments={setFireAdjustments}
             adjustBearing={adjustBearing} setAdjustBearing={setAdjustBearing}
             bearingUnit={bearingUnit} setBearingUnit={setBearingUnit}
+            autoBearingDeg={autoBearingDeg}
             onApply={applyAdjustmentsAndRecalcController}
           />
         )}
