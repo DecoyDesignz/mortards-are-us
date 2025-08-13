@@ -1,6 +1,6 @@
 import React from 'react';
 import { degreesToMils, milsToDegrees } from '../Utilities';
-import '../styles/sheaf.css';
+import '../styles/sheafTab.css';
 
 export default function SheafTab({
   mortars, addMortar, deleteMortar, updateMortar,
