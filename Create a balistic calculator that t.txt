@@ -1,7 +1,3 @@
-Create a balistic calculator that turns a grid location into a bearing and deflection that i can use for arma reforger mortars
-
-The calculator must have these capabilities:
-
 Have an imput for mortar location and altitude
 Have an imput for target location and altitude
 Have a time of flight
