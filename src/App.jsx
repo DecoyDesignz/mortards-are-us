@@ -63,25 +63,15 @@ export default function App() {
   const mortarValid = mortarEastingParsed !== null && mortarNorthingParsed !== null;
   const targetValid = targetEastingParsed !== null && targetNorthingParsed !== null;
 
-  // Stable auto-bearing: does not change for add/drop-only changes; updates on deflection
+  // Stable auto-bearing: fixed to original target; does not change with add/drop or deflection
   const autoBearingDeg = useMemo(() => {
     if (!mortarValid || originalTargetEasting === null || originalTargetNorthing === null) return null;
-    const { bearingDeg: baseBearing } = rangeCalculation(
+    const { bearingDeg } = rangeCalculation(
       mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
       originalTargetEasting, originalTargetNorthing, targetElev || 0
     );
-    const deflection = (fireAdjustments.right || 0) - (fireAdjustments.left || 0);
-    if (!deflection) return baseBearing;
-    const baseRad = baseBearing * Math.PI / 180;
-    const perpRad = baseRad + Math.PI / 2;
-    const adjE = originalTargetEasting + deflection * Math.sin(perpRad);
-    const adjN = originalTargetNorthing + deflection * Math.cos(perpRad);
-    const { bearingDeg } = rangeCalculation(
-      mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
-      adjE, adjN, targetElev || 0
-    );
     return bearingDeg;
-  }, [mortarValid, originalTargetEasting, originalTargetNorthing, fireAdjustments.right, fireAdjustments.left, mortarEastingParsed, mortarNorthingParsed, mortarElev, targetElev]);
+  }, [mortarValid, originalTargetEasting, originalTargetNorthing, mortarEastingParsed, mortarNorthingParsed, mortarElev, targetElev]);
 
   // Store original target coordinates and precise copy when they first become valid
   useEffect(() => {
@@ -264,14 +254,7 @@ export default function App() {
         type: useIndirect ? 'Indirect' : 'Direct',
         solution: useIndirect ? best.indirect : best.direct,
         bearingMils: (() => {
-          const hasUserBearing = adjustBearing !== '' && !isNaN(Number(adjustBearing));
-          if (hasUserBearing) {
-            const deg = bearingUnit === 'mils' ? Number(adjustBearing) / 17.7778 : Number(adjustBearing);
-            return Math.round(deg * 17.7778);
-          }
-          if (autoBearingDeg !== null && autoBearingDeg !== undefined) {
-            return Math.round(autoBearingDeg * 17.7778);
-          }
+          // Always use current geometry (precise target) so bearing matches shown range
           const targetE = targetEastingPrecise ?? targetEastingParsed;
           const targetN = targetNorthingPrecise ?? targetNorthingParsed;
           const { bearingDeg } = rangeCalculation(
@@ -287,6 +270,75 @@ export default function App() {
       setSolutionReason(reason);
     }
   }, [mortarEasting, mortarNorthing, targetEasting, targetNorthing, mortarElev, targetElev]);
+
+  // Update Firing Solution card when user changes ring selection
+  useEffect(() => {
+    if (!solutions || solutions.length === 0) { setBestSolution(null); setSolutionReason(''); return; }
+    const idx = Math.min(Math.max(0, chosenIndex || 0), solutions.length - 1);
+    const best = solutions[idx];
+    if (!best) { setBestSolution(null); setSolutionReason(''); return; }
+
+    const MIN_ELEVATION_MILS = 800;
+
+    const directValid = best.direct && best.direct.angleMils >= MIN_ELEVATION_MILS;
+    const indirectValid = best.indirect && best.indirect.angleMils >= MIN_ELEVATION_MILS;
+
+    let useIndirect = true;
+    let reason = '';
+
+    if (indirectValid && directValid) {
+      const indirectObj = best.indirect.obj;
+      const directObj = best.direct.obj;
+      const isLongRange = best.horizontalDistance > 1000;
+      const tolerance = isLongRange ? 2.0 : 1.5;
+      useIndirect = indirectObj <= directObj * tolerance;
+      if (useIndirect) {
+        if (indirectObj <= directObj) {
+          reason = 'Indirect fire chosen - better accuracy than direct';
+        } else if (isLongRange) {
+          reason = 'Indirect fire chosen - preferred for long range targets (>1000m)';
+        } else {
+          reason = 'Indirect fire chosen - standard mortar doctrine';
+        }
+      } else {
+        reason = 'Direct fire chosen - indirect fire accuracy too poor';
+      }
+    } else if (indirectValid && !directValid) {
+      useIndirect = true;
+      reason = `Indirect fire chosen - direct fire below 800 mil minimum (${best.direct ? best.direct.angleMils : 'N/A'} mils)`;
+    } else if (!indirectValid && directValid) {
+      useIndirect = false;
+      reason = `Direct fire chosen - indirect fire below 800 mil minimum (${best.indirect ? best.indirect.angleMils : 'N/A'} mils)`;
+    } else if (indirectValid) {
+      useIndirect = true;
+      reason = 'Indirect fire chosen - only viable solution';
+    } else if (directValid) {
+      useIndirect = false;
+      reason = 'Direct fire chosen - only viable solution';
+    } else {
+      useIndirect = best.indirect !== null;
+      reason = 'Warning: Selected solution below 800 mil minimum elevation';
+    }
+
+    setBestSolution({
+      ring: best.label,
+      type: useIndirect ? 'Indirect' : 'Direct',
+      solution: useIndirect ? best.indirect : best.direct,
+      bearingMils: (() => {
+        const targetE = targetEastingPrecise ?? targetEastingParsed;
+        const targetN = targetNorthingPrecise ?? targetNorthingParsed;
+        const { bearingDeg } = rangeCalculation(
+          mortarEastingParsed, mortarNorthingParsed, mortarElev || 0,
+          targetE, targetN, targetElev || 0
+        );
+        return Math.round(bearingDeg * 17.7778);
+      })(),
+      range: best.horizontalDistance,
+      elevationExceeded: (useIndirect ? best.indirect?.angleMils : best.direct?.angleMils) < MIN_ELEVATION_MILS
+    });
+
+    setSolutionReason(reason);
+  }, [solutions, chosenIndex, adjustBearing, bearingUnit, mortarEastingParsed, mortarNorthingParsed, targetEastingParsed, targetNorthingParsed, targetEastingPrecise, targetNorthingPrecise, mortarElev, targetElev]);
 
   // Functions for managing mortars in sheaf tab
   const addMortar = () => {
