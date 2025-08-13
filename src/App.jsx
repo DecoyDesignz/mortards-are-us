@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
 import './styles/theme.css';
-import './styles/theme.css';
 import './styles/Common.css';
 import './styles/Sidebar.css';
 import './App.css';

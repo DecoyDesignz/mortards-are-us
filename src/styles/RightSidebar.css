@@ -31,11 +31,8 @@
   font-size: 18px;
 }
 
-/* Inherit tab styles from main Tabs.css */
-.right-tab-content {
-  padding-top: 8px;
-  animation: fadeIn 0.3s ease;
-}
+/* Use same tab styles as left by applying .tabs */
+.right-tab-content { padding-top: 8px; }
 
 .right-sidebar-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 999; }
 
